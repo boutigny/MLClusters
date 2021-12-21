@@ -30,8 +30,13 @@ def checkPatch(tract, patch, butler):
     goodImage = True
     patchName = str(patch[0]) + ',' + str(patch[1])
     dataId = {'tract':tract, 'patch':patchName, 'filter':'r'}
-    src = butler.get('deepCoadd_forced_src', dataId=dataId)
-    if len(src) < 10000:
+    try:
+        src = butler.get('deepCoadd_forced_src', dataId=dataId)
+    except Exception as msg:
+        print(msg)
+        goodImage = False
+
+    if goodImage and len(src) < 10000:
         goodImage = False
         print("Incomplete image detected for tract={} - patch={}".format(tract, patch))
 
@@ -60,32 +65,44 @@ def getFullImage(butler, tract, patch, innerBbox):
     dataId = {'tract':tract, 'patch':patchName}
     im = {}
     filters = ['u', 'g', 'r', 'i', 'z', 'y']
+    isBad = False
     for f in filters:
         dataId['filter'] = f
-        exp = butler.get('deepCoadd', dataId=dataId).getMaskedImage()[innerBbox]
+        try:
+            exp = butler.get('deepCoadd', dataId=dataId).getMaskedImage()[innerBbox]
+        except Exception as msg:
+            print(msg)
+            isBad = True
+            break
+
         im[f] = exp.getImage().getArray()
         # We need to keep the reference coordinates X0, Y0 to convert image coordinates into natural CCD coordinates
         if f == 'r':
             X0 = exp.getX0()
             Y0 = exp.getY0()
-    
-    #Images have pixels with negative values so we add a pedestal in order to have only positive pixels 
-    minVal = np.min([np.min(im[f]) for f in filters])
-    if minVal < 0:
-        pedestal = math.ceil(-minVal)
+
+    if not isBad:
+        #Images have pixels with negative values so we add a pedestal in order to have only positive pixels 
+        minVal = np.min([np.min(im[f]) for f in filters])
+        if minVal < 0:
+            pedestal = math.ceil(-minVal)
+        else:
+            pedestal = 0
+
+        fullImage = np.dstack([im[f] + pedestal for f in filters])
+
+        # If everything has been done correctly the overlap region should have been removed around
+        # the patch and the image should be 4000x4000 pixels
+        # If not, just print out a warning
+        numPix = im['r'].shape[1]
+        if numPix != 4000:
+            print("Unexpected number of pixels in image {}".format(numPix))
     else:
-        pedestal = 0
+        fullImage = [],
+        X0 = -99
+        Y0 = -99
 
-    fullImage = np.dstack([im[f] + pedestal for f in filters])
-
-    # If everything has been done correctly the overlap region should have been removed around
-    # the patch and the image should be 4000x4000 pixels
-    # If not, just print out a warning
-    numPix = im['r'].shape[1]
-    if numPix != 4000:
-        print("Unexpected number of pixels in image {}".format(numPix))
-
-    return fullImage, X0, Y0 
+    return fullImage, X0, Y0, isBad
 
 def getSkyBbox(halos, minGal):
     # Determine bounding box containing all the halo members
@@ -181,7 +198,7 @@ def main():
             patchInfo = tractInfo.getPatchInfo(patch)   
             goodImage = checkPatch(tract, patch, butler)
             if not goodImage:
-                next
+                continue
 
             # Get the polygon on the sky that contains the patch
             poly = patchInfo.getInnerSkyPolygon(tractInfo.getWcs())
@@ -203,7 +220,7 @@ def main():
             skyBbox, reject = getSkyBbox(halos, minGal)
             # we don't keep image with halos flagged as bad
             if reject:
-                next
+                continue
 
             patchName = str(patch[0]) + ',' + str(patch[1])
             name = str(tract) + '_' + patchName
@@ -211,7 +228,9 @@ def main():
             labelFile = os.path.join(out_path, 'labels', name + '.txt')
 
             innerBbox = patchInfo.getInnerBBox()
-            fullImage, X0, Y0 = getFullImage(butler, tract, patch, innerBbox)
+            fullImage, X0, Y0, isBad = getFullImage(butler, tract, patch, innerBbox)
+            if isBad:
+                continue
 
             #outerBbox = patchInfo.getOuterBBox()
             #deltaX = innerBbox.beginX-outerBbox.beginX
