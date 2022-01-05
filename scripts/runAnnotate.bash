@@ -2,6 +2,7 @@
 
 #SBATCH --job-name=annotateDC2
 #SBATCH --ntasks=1
+#SBATCH --mem 6000
 #SBATCH -L sps
 
 source /cvmfs/sw.lsst.eu/linux-x86_64/lsst_distrib/w_2021_44/loadLSST.bash
