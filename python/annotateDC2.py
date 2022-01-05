@@ -138,6 +138,14 @@ def getSkyBbox(halos, minGal):
 
     return skyBbox, reject
 
+def crop(x):
+    # crop bounding box coordinates in order to stay within the 0-3999 range
+    if (x<0):
+        x = 0
+    elif (x>3999):
+        x = 39999
+    return x
+
 def main():
     parser = OptionParser(usage="usage: %prog [options] input",
                           version="%prog 1.0")
@@ -185,7 +193,19 @@ def main():
     # Get a skyMap object to retrieve tract/patch geometry
     skyMap = butler.get("deepCoadd_skyMap")
 
+    #List of already processed tracts
+    #procTracts = [2723,2724,2725,2726,2727,2728,2729,2730,2731,2732,2733,2734,2735,2896,2897,2898,2899,2900,2901,2902,2903,2904,2905,2906,
+    #             2907,2908,3074,3075,3076,3077,3078,3079,3080,3081,3082,3083,3084,3085,3086,3256,3257,3258,3259,3260,3261,3262,3263,3264,
+    #             3265,3266,3267,3268,3441,3442,3443,3444,3445,3446,3447,3448,3449,3450,3451,3452,3453,3631,3632,3633,3634,3635,3636,3637,
+    #             3638,3639,3640,3641,3642,3643,3825,3826,3827,3828,3829,3830,3831,3832,3833,3834,3835,3836,3837,4023,4024,4025,4026,4027,
+    #             4028,4029,4030,4031,4032,4033,4034,4035,4224,4225,4226,4227,4228,4229,4230,4231,4232,4233,4234,4235,4236,4429,4430,4431,
+    #            4432,4433,4434,4435,4436,4437,4438,4439,4440,4441,4636,4637,4638,4639,4640,4641,4642,4643,4644,4645,4646,4647]
+    procTracts = []
+
     for tract in tracts:
+        if tract in procTracts:
+            continue
+
         tractInfo = skyMap[tract]
         patches = sorted([os.path.basename(x) for x in
                          glob.glob(os.path.join(repo, 'deepCoadd-results', 'merged', str(tract), '*'))])
@@ -194,7 +214,12 @@ def main():
         #patches = ['2,5']
         #<<<<<
         for p in patches:
-            patch = list(map(int, p.split(',')))
+            try:
+                patch = list(map(int, p.split(',')))
+            except Exception as msg:
+                print(msg)
+                next
+
             patchInfo = tractInfo.getPatchInfo(patch)   
             goodImage = checkPatch(tract, patch, butler)
             if not goodImage:
@@ -242,10 +267,10 @@ def main():
                 with open(labelFile, 'w') as file:
                     for sky in skyBbox:
                         box = wcs.skyToPixel(sky[1:])
-                        x0 = box[0].getX()-X0+e
-                        y0 = numPix-1 - (box[0].getY()-Y0-e)
-                        x1 = box[1].getX()-X0-e
-                        y1 = numPix-1 - (box[1].getY()-Y0+e)
+                        x0 = crop(box[0].getX()-X0+e)
+                        y0 = crop(numPix-1 - (box[0].getY()-Y0-e))
+                        x1 = crop(box[1].getX()-X0-e)
+                        y1 = crop(numPix-1 - (box[1].getY()-Y0+e))
                         dx = x0 - x1
                         dy = y0 - y1
                         # print(x1, y1, dx, dy)
