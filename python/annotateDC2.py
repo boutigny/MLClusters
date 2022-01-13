@@ -274,7 +274,7 @@ def main():
                         dx = x0 - x1
                         dy = y0 - y1
                         # print(x1, y1, dx, dy)
-                        file.write('{} {} {} {} {}\n'.format(0, x1, y1, dx, dy))
+                        file.write('{} {} {} {} {}\n'.format(0, x1/(numPix-1), y1/(numPix-1), dx/(numPix-1), dy/(numPix-1)))
 
 
             # Write out 6 band image in tif format
