@@ -218,7 +218,7 @@ def main():
                 patch = list(map(int, p.split(',')))
             except Exception as msg:
                 print(msg)
-                next
+                continue
 
             patchInfo = tractInfo.getPatchInfo(patch)   
             goodImage = checkPatch(tract, patch, butler)
