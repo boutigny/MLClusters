@@ -143,7 +143,7 @@ def crop(x):
     if (x<0):
         x = 0
     elif (x>3999):
-        x = 39999
+        x = 3999
     return x
 
 def main():
